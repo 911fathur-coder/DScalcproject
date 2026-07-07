@@ -18,6 +18,9 @@
         <span class="navbar-compact-title" id="navCompactTitle">Kalkulator</span>
       </div>
       <div class="navbar-actions">
+        <button class="icon-btn" id="switchModeBtn" aria-label="Ganti Mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4-4 4M3 7h18M7 21l-4-4 4-4M21 17H3"/></svg>
+        </button>
         <button class="icon-btn" id="themeToggle" aria-label="Ganti Tema">
           <span class="theme-icon-wrap">
             <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
@@ -26,6 +29,10 @@
         </button>
       </div>
     </div>
+  </div>
+  <div class="offline-banner" id="offlineBanner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+    <span>Offline — data akan tersimpan &amp; terkirim otomatis saat online lagi</span>
   </div>
 
   <div class="scroll-area" id="scrollArea">
@@ -72,7 +79,7 @@
                 <svg class="row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
               </div>
             </div>
-            <div class="list-row">
+            <div class="list-row" id="modeToggleRow">
               <span class="row-label">Mode</span>
               <div class="mini-segmented" id="modeSegmented" style="width:120px;">
                 <div class="mini-seg-indicator" id="modeIndicator"></div>
@@ -80,9 +87,15 @@
                 <button class="mini-seg-opt" data-mode="3" style="flex:1;">3-Pt</button>
               </div>
             </div>
-            <div class="list-row">
+            <div class="list-row" id="noHeadRow">
               <span class="row-label">No. Head</span>
               <input class="row-field" id="headNoInput" inputmode="numeric" placeholder="Opsional">
+            </div>
+            <div class="list-row tappable hidden" id="rowHeadCount">
+              <span class="row-label">Jumlah Head</span>
+              <div class="row-trailing"><span class="row-value" id="headCountValue">8</span>
+                <svg class="row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+              </div>
             </div>
           </div>
 
@@ -102,22 +115,38 @@
             </div>
           </div>
 
-          <div class="group-header">Pengukuran Manual</div>
-          <div class="card" style="padding-top:12px;padding-bottom:6px;">
-            <div id="measureHead"></div>
-            <div id="measureBody"></div>
+          <!-- ===== KALKULATOR MODE (single head, 4 parameter original) ===== -->
+          <div id="kalkulatorModeView">
+            <div class="group-header">Pengukuran Manual</div>
+            <div class="card" style="padding-top:12px;padding-bottom:6px;">
+              <div id="measureHead"></div>
+              <div id="measureBody"></div>
+            </div>
+
+            <button class="btn btn-primary" id="generateBtn">
+              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2L4 14h6l-1 8 10-14h-7l1-6z"/></svg>
+              <span>Hitung</span>
+            </button>
+            <button class="btn btn-destructive" id="clearBtn" style="margin-top:6px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Bersihkan Data
+            </button>
+
+            <div id="resultContainer"></div>
           </div>
 
-          <button class="btn btn-primary" id="generateBtn">
-            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2L4 14h6l-1 8 10-14h-7l1-6z"/></svg>
-            <span>Hitung</span>
-          </button>
-          <button class="btn btn-destructive" id="clearBtn" style="margin-top:6px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            Bersihkan Data
-          </button>
-
-          <div id="resultContainer"></div>
+          <!-- ===== FORM PDF MODE (multi-head wizard) ===== -->
+          <div id="formPdfModeView" class="hidden">
+            <div id="formPdfWizardWrap">
+              <div class="group-header" id="formPdfStepLabel">Langkah 1 / 7 — OCH</div>
+              <div class="card" id="formPdfWizardBody" style="padding:14px;"></div>
+              <div class="btn-row">
+                <button class="btn btn-secondary" id="formPdfBackBtn">Kembali</button>
+                <button class="btn btn-primary" id="formPdfNextBtn">Lanjut</button>
+              </div>
+            </div>
+            <div id="formPdfResultsWrap" class="hidden"></div>
+          </div>
         </section>
 
         <!-- HISTORY -->
@@ -146,9 +175,11 @@
               <div class="segmented-indicator" id="settingsIndicator"></div>
               <button class="segmented-opt active" data-panel="panel-general">Umum</button>
               <button class="segmented-opt" data-panel="panel-overlap">Overlap</button>
+              <button class="segmented-opt" data-panel="panel-lainnya">Lainnya</button>
             </div>
             <div class="card" id="panel-general"></div>
             <div class="card hidden" id="panel-overlap"></div>
+            <div class="card hidden" id="panel-lainnya"></div>
 
             <div class="btn-row">
               <button class="btn btn-secondary" id="resetStandardsBtn">Standar</button>
@@ -182,6 +213,34 @@
   <div class="alert-box" id="alertBox">
     <div class="alert-content"><div class="alert-title" id="alertTitle"></div><div class="alert-message" id="alertMessage"></div></div>
     <div class="alert-actions" id="alertActions"></div>
+  </div>
+
+  <!-- ============ MODE SELECT SCREEN ============ -->
+  <div class="gate-overlay" id="modeSelectScreen">
+    <div class="gate-card" style="max-width:380px;">
+      <h2 class="gate-title" style="margin-bottom:4px;">Pilih Mode</h2>
+      <p class="gate-message">Mau pakai yang mana sekarang?</p>
+      <div class="mode-select-options">
+        <button class="mode-select-btn" id="pickKalkulatorBtn">
+          <span class="mode-select-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2.5"/><path d="M7 7v3M11 7v4M15 7v3M19 7v4"/></svg>
+          </span>
+          <span class="mode-select-text">
+            <span class="mode-select-title">Kalkulator</span>
+            <span class="mode-select-desc">Hitung cepat 1 head, tanpa form cetak</span>
+          </span>
+        </button>
+        <button class="mode-select-btn" id="pickFormPdfBtn">
+          <span class="mode-select-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 11h6"/></svg>
+          </span>
+          <span class="mode-select-text">
+            <span class="mode-select-title">Form PDF</span>
+            <span class="mode-select-desc">Inspeksi banyak head sekaligus, siap cetak</span>
+          </span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- ============ CONSENT GATE ============ -->
@@ -219,12 +278,27 @@
         <button class="icon-btn" id="devRefreshBtn" aria-label="Muat ulang">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
-        <button class="icon-btn danger" id="devLogoutBtn" aria-label="Keluar">
+        <button class="icon-btn danger" id="devClearAllBtn" aria-label="Hapus semua log">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6h12z"/></svg>
+        </button>
+        <button class="icon-btn" id="devLogoutBtn" aria-label="Keluar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
     </div>
-    <div class="dev-panel-body" id="devPanelBody"></div>
+    <div class="dev-panel-body">
+      <div class="dev-toolbar">
+        <input type="text" id="devSearchInput" placeholder="Cari profile / device / No. Head…">
+        <div class="segmented size-sm" id="devStatusSegmented" style="margin-top:8px;">
+          <div class="segmented-indicator" id="devStatusIndicator"></div>
+          <button class="segmented-opt active" data-status="all">Semua</button>
+          <button class="segmented-opt" data-status="pass">Lolos</button>
+          <button class="segmented-opt" data-status="fail">Gagal</button>
+        </div>
+      </div>
+      <div id="devDailySummary"></div>
+      <div id="devLogListArea"></div>
+    </div>
   </div>
 
 </div>
@@ -234,6 +308,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
+<script src="sheets-config.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
