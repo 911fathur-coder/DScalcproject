@@ -41,7 +41,9 @@ class StorageManager {
       'Seam Thickness':{min:1.15,max:1.35}, 'Seam Length':{min:2.50,max:2.80},
       'Body Hook':{min:1.70,max:2.10}, 'Cover Hook':{min:1.50,max:1.90},
       'Actual Overlap':{min:1.00,max:null}, '% Overlap':{min:0,max:null},
-      '%BHB':{min:75,max:null}, 'Freespace':{min:0,max:null}
+      '%BHB':{min:75,max:null}, 'Freespace':{min:0,max:null},
+      'OCH':{min:103.85,max:104.45}, 'Flange Width':{min:2.00,max:2.40},
+      'C/S':{min:5.08,max:5.48}, '%TR':{min:75,max:null}
     };
   }
 }
@@ -49,7 +51,7 @@ class StorageManager {
 /* ============ CALCULATOR (logic unchanged from source) ============ */
 class Calculator {
   calculate(inputs, standards){
-    const { bodyThickness, eoeThickness, measurements, mode } = inputs;
+    const { bodyThickness, eoeThickness, measurements, mode, ochValue } = inputs;
     const cols = mode==='1' ? 1 : 3;
     const avg = {};
     Object.keys(measurements).forEach(p=>{ avg[p] = measurements[p].reduce((a,b)=>a+b,0)/cols; });
@@ -70,9 +72,15 @@ class Calculator {
 
     const results = {
       'Seam Thickness':avg['Seam Thickness'], 'Seam Length':avg['Seam Length'],
-      'Body Hook':avg['Body Hook'], 'Cover Hook':avg['Cover Hook'], '%BHB':bhb,
-      'Freespace':freeSpace, 'Actual Overlap':avgActualOverlap, '% Overlap':avgPercentOverlap
+      'Body Hook':avg['Body Hook'], 'Cover Hook':avg['Cover Hook'],
+      '%BHB':bhb, 'Freespace':freeSpace, 'Actual Overlap':avgActualOverlap, '% Overlap':avgPercentOverlap
     };
+    if(avg['Flange Width']!==undefined) results['Flange Width'] = avg['Flange Width'];
+    if(avg['C/S']!==undefined) results['C/S'] = avg['C/S'];
+    if(avg['%TR']!==undefined) results['%TR'] = avg['%TR'];
+    if(ochValue!==undefined && ochValue!==null && ochValue!=='' && !isNaN(parseFloat(ochValue))){
+      results['OCH'] = parseFloat(ochValue);
+    }
 
     const checks = {}; let overallStatus='pass';
     for(const key in results){ checks[key]=this.checkStandard(results[key], standards[key]); if(checks[key]==='fail') overallStatus='fail'; }
@@ -140,7 +148,7 @@ class App{
       historyListContainer:$('historyListContainer'),
       profileListContainer:$('profileListContainer'), newProfileName:$('newProfileName'), addProfileBtn:$('addProfileBtn'),
       editingProfileName:$('editingProfileName'), settingsSegmented:$('settingsSegmented'), settingsIndicator:$('settingsIndicator'),
-      panelGeneral:$('panel-general'), panelOverlap:$('panel-overlap'),
+      panelGeneral:$('panel-general'), panelOverlap:$('panel-overlap'), panelLainnya:$('panel-lainnya'),
       saveSettingsBtn:$('saveSettingsBtn'), saveIcon:$('saveIcon'), saveLabel:$('saveLabel'), resetStandardsBtn:$('resetStandardsBtn'),
       toast:$('toast'), toastText:$('toastText'),
       sheetBackdrop:$('sheetBackdrop'), sheet:$('sheet'), sheetTitle:$('sheetTitle'), sheetBody:$('sheetBody'), sheetClose:$('sheetClose'), sheetHandleZone:$('sheetHandleZone'),
@@ -148,11 +156,29 @@ class App{
       brandBadge:$('brandBadge'),
       consentGate:$('consentGate'), consentAgreeBtn:$('consentAgreeBtn'), consentDeclineBtn:$('consentDeclineBtn'),
       blockedGate:$('blockedGate'), reconsiderBtn:$('reconsiderBtn'),
-      devPanel:$('devPanel'), devPanelBody:$('devPanelBody'), devRefreshBtn:$('devRefreshBtn'), devLogoutBtn:$('devLogoutBtn')
+      devPanel:$('devPanel'), devRefreshBtn:$('devRefreshBtn'), devClearAllBtn:$('devClearAllBtn'), devLogoutBtn:$('devLogoutBtn'),
+      devSearchInput:$('devSearchInput'), devStatusSegmented:$('devStatusSegmented'), devStatusIndicator:$('devStatusIndicator'),
+      devDailySummary:$('devDailySummary'), devLogListArea:$('devLogListArea'),
+      offlineBanner:$('offlineBanner'),
+      modeSelectScreen:$('modeSelectScreen'), pickKalkulatorBtn:$('pickKalkulatorBtn'), pickFormPdfBtn:$('pickFormPdfBtn'), switchModeBtn:$('switchModeBtn'),
+      modeToggleRow:$('modeToggleRow'), noHeadRow:$('noHeadRow'), rowHeadCount:$('rowHeadCount'), headCountValue:$('headCountValue'),
+      kalkulatorModeView:$('kalkulatorModeView'), formPdfModeView:$('formPdfModeView'),
+      formPdfStepLabel:$('formPdfStepLabel'), formPdfWizardBody:$('formPdfWizardBody'),
+      formPdfBackBtn:$('formPdfBackBtn'), formPdfNextBtn:$('formPdfNextBtn'),
+      formPdfWizardWrap:$('formPdfWizardWrap'), formPdfResultsWrap:$('formPdfResultsWrap')
     };
     this.state = { mode:'3', body:0.16, eoe:0.22 };
     this.bodyOptions = ['0.15','0.16','0.17'];
     this.eoeOptions = ['0.16','0.17','0.18','0.19','0.20','0.21','0.22','0.23','0.24'];
+    this.headCountOptions = [4,6,8,12];
+    this.appMode = null;
+    this.formPdf = {
+      headCount: 8,
+      stepIndex: 0,
+      steps: ['OCH','Flange Width','C/S','Seam Thickness','Seam Length','Body Hook','Cover Hook'],
+      data: {},
+      results: null
+    };
   }
 
   init(){
@@ -168,6 +194,8 @@ class App{
     this.renderAll();
     this.initGates();
     this.initDevAccess();
+    this.initModeSelect();
+    this.initOfflineIndicator();
     this.flushPendingLogs();
     requestAnimationFrame(()=>{ this.layoutIndicator(this.dom.tabSegmented, this.dom.tabIndicator); this.layoutIndicator(this.dom.settingsSegmented, this.dom.settingsIndicator); });
     window.addEventListener('resize', ()=>{ this.layoutIndicator(this.dom.tabSegmented, this.dom.tabIndicator); this.layoutIndicator(this.dom.settingsSegmented, this.dom.settingsIndicator); });
@@ -203,7 +231,7 @@ class App{
     document.querySelectorAll('.view-panel').forEach(p=>p.classList.remove('active'));
     const target = document.getElementById('view-'+view);
     target.classList.add('active');
-    const titles = { calculator:'Kalkulator', history:'Riwayat', settings:'Atur Standar' };
+    const titles = { calculator:(this.appMode==='formpdf'?'Form PDF':'Kalkulator'), history:'Riwayat', settings:'Atur Standar' };
     this.dom.largeTitle.textContent = titles[view];
     this.dom.navCompactTitle.textContent = titles[view];
     this.dom.largeTitleSub.textContent = view==='calculator' ? 'DS.CALC · PRESENTED BY FATHUR' : (view==='history' ? 'LOG PENGUKURAN TERSIMPAN' : 'PROFILE & TOLERANSI');
@@ -238,6 +266,7 @@ class App{
   switchSettingsPanel(panelId){
     this.dom.panelGeneral.classList.toggle('hidden', panelId!=='panel-general');
     this.dom.panelOverlap.classList.toggle('hidden', panelId!=='panel-overlap');
+    this.dom.panelLainnya.classList.toggle('hidden', panelId!=='panel-lainnya');
   }
 
   /* ---------- mode mini segmented ---------- */
@@ -347,6 +376,14 @@ class App{
   /* =========================================================
      CONSENT GATE & BLOCKED GATE
      ========================================================= */
+  /* ---------- offline indicator ---------- */
+  initOfflineIndicator(){
+    const update = ()=>{ this.dom.offlineBanner.classList.toggle('show', !navigator.onLine); };
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    update();
+  }
+
   initGates(){
     const consentStatus = localStorage.getItem('ds_consent');
     if(consentStatus === 'declined'){
@@ -357,6 +394,7 @@ class App{
     this.dom.consentAgreeBtn.addEventListener('click', ()=>{
       localStorage.setItem('ds_consent', 'agreed');
       this.dom.consentGate.classList.remove('show');
+      this.dom.modeSelectScreen.classList.add('show');
       vibrate(10);
     });
     this.dom.consentDeclineBtn.addEventListener('click', ()=>{
@@ -372,6 +410,426 @@ class App{
   }
 
   /* =========================================================
+     MODE SELECT (Kalkulator vs Form PDF)
+     ========================================================= */
+  initModeSelect(){
+    const consentStatus = localStorage.getItem('ds_consent');
+    if(consentStatus === 'agreed'){
+      this.dom.modeSelectScreen.classList.add('show');
+    }
+    this.dom.pickKalkulatorBtn.addEventListener('click', ()=>this.chooseMode('kalkulator'));
+    this.dom.pickFormPdfBtn.addEventListener('click', ()=>this.chooseMode('formpdf'));
+    this.dom.switchModeBtn.addEventListener('click', ()=>{ this.dom.modeSelectScreen.classList.add('show'); vibrate(8); });
+    this.dom.rowHeadCount.addEventListener('click', ()=>this.openHeadCountPicker());
+    this.dom.formPdfNextBtn.addEventListener('click', ()=>this.handleWizardNext());
+    this.dom.formPdfBackBtn.addEventListener('click', ()=>this.handleWizardBack());
+    // Terapkan tampilan default (Kalkulator) sebelum user memilih apapun
+    this.applyMode('kalkulator');
+  }
+
+  chooseMode(mode){
+    this.appMode = mode;
+    this.dom.modeSelectScreen.classList.remove('show');
+    this.applyMode(mode);
+    if(this.activeView!=='calculator') this.switchView('calculator');
+    vibrate(10);
+  }
+
+  applyMode(mode){
+    const isPdf = mode==='formpdf';
+    this.dom.modeToggleRow.classList.toggle('hidden', isPdf);
+    this.dom.noHeadRow.classList.toggle('hidden', isPdf);
+    this.dom.rowHeadCount.classList.toggle('hidden', !isPdf);
+    this.dom.kalkulatorModeView.classList.toggle('hidden', isPdf);
+    this.dom.formPdfModeView.classList.toggle('hidden', !isPdf);
+    const title = isPdf ? 'Form PDF' : 'Kalkulator';
+    if(this.activeView==='calculator'){
+      this.dom.largeTitle.textContent = title;
+      this.dom.navCompactTitle.textContent = title;
+    }
+    const firstTabBtn = this.dom.tabSegmented.querySelector('.segmented-opt[data-view="calculator"]');
+    if(firstTabBtn){
+      const svg = firstTabBtn.querySelector('svg');
+      firstTabBtn.innerHTML = '';
+      if(svg) firstTabBtn.appendChild(svg);
+      firstTabBtn.appendChild(document.createTextNode(title));
+    }
+    if(isPdf){
+      this.resetFormPdfWizard();
+      this.renderFormPdfStep();
+    }
+  }
+
+  /* =========================================================
+     FORM PDF — WIZARD MULTI-HEAD
+     ========================================================= */
+  openHeadCountPicker(){
+    const html = this.headCountOptions.map(v=>
+      '<div class="picker-opt" data-v="'+v+'"><span>'+v+' Head</span>'+ICON_CHECK+'</div>'
+    ).join('');
+    this.openSheet('Jumlah Head', html, (body)=>{
+      body.querySelectorAll('.picker-opt').forEach(row=>{
+        row.classList.toggle('selected', parseInt(row.dataset.v,10)===this.formPdf.headCount);
+        row.addEventListener('click', ()=>{
+          const newCount = parseInt(row.dataset.v,10);
+          if(newCount !== this.formPdf.headCount){
+            this.openAlert('Ganti Jumlah Head?', 'Data yang sudah diisi di sesi Form PDF ini akan direset ulang.', [
+              {text:'Batal', style:'cancel'},
+              {text:'Ganti', style:'destructive', onClick:()=>{
+                this.formPdf.headCount = newCount;
+                this.dom.headCountValue.textContent = newCount;
+                this.resetFormPdfWizard();
+                this.renderFormPdfStep();
+              }}
+            ]);
+          }
+          this.closeSheet(); vibrate(8);
+        });
+      });
+    });
+  }
+
+  resetFormPdfWizard(){
+    const n = this.formPdf.headCount;
+    const data = {};
+    this.formPdf.steps.forEach(step=>{
+      if(step==='OCH') data[step] = new Array(n).fill('');
+      else data[step] = Array.from({length:n}, ()=>['','','']);
+    });
+    this.formPdf.data = data;
+    this.formPdf.stepIndex = 0;
+    this.formPdf.results = null;
+    this.dom.formPdfWizardWrap.classList.remove('hidden');
+    this.dom.formPdfResultsWrap.classList.add('hidden');
+    this.dom.formPdfResultsWrap.innerHTML = '';
+  }
+
+  renderFormPdfStep(){
+    const step = this.formPdf.steps[this.formPdf.stepIndex];
+    const n = this.formPdf.headCount;
+    const totalSteps = this.formPdf.steps.length;
+    this.dom.formPdfStepLabel.textContent = 'Langkah '+(this.formPdf.stepIndex+1)+' / '+totalSteps+' — '+step;
+    this.dom.formPdfBackBtn.style.visibility = this.formPdf.stepIndex===0 ? 'hidden' : 'visible';
+    this.dom.formPdfNextBtn.textContent = (this.formPdf.stepIndex===totalSteps-1) ? 'Generate' : 'Lanjut';
+
+    let html = '';
+    if(step==='OCH'){
+      html = Array.from({length:n}, (_,i)=>
+        '<div class="wizard-head-block">'
+        + '<div class="wizard-head-title">Head '+(i+1)+'</div>'
+        + '<input type="text" inputmode="decimal" class="wizard-single-input" data-step="OCH" data-head="'+i+'" placeholder="0.00" value="'+(this.formPdf.data['OCH'][i] ?? '')+'">'
+        + '</div>'
+      ).join('');
+    } else {
+      html = Array.from({length:n}, (_,i)=>{
+        const vals = this.formPdf.data[step][i];
+        const cols = ['A','B','C'].map((lbl,pIdx)=>
+          '<div class="wizard-point-col"><label>'+lbl+'</label>'
+          + '<input type="text" inputmode="decimal" data-step="'+step+'" data-head="'+i+'" data-point="'+pIdx+'" value="'+(vals[pIdx] ?? '')+'" placeholder="0.00"></div>'
+        ).join('');
+        return '<div class="wizard-head-block"><div class="wizard-head-title">Head '+(i+1)+'</div><div class="wizard-point-row">'+cols+'</div></div>';
+      }).join('');
+    }
+    this.dom.formPdfWizardBody.innerHTML = html;
+    this.attachWizardInputEvents();
+  }
+
+  attachWizardInputEvents(){
+    const standards = this.storage.getActiveProfile().standards;
+    const inputs = Array.from(this.dom.formPdfWizardBody.querySelectorAll('input'));
+    inputs.forEach((input, idx)=>{
+      input.addEventListener('focus', ()=>input.select());
+      input.addEventListener('input', ()=>{
+        let val = input.value;
+        if(val.includes(',')){ val = val.replace(',', '.'); input.value = val; }
+        if(!/^[0-9.]*$/.test(val)){ input.value = val.replace(/[^0-9.]/g,''); val = input.value; }
+        if((val.match(/\./g)||[]).length>1){ val = val.substring(0, val.lastIndexOf('.')); input.value = val; }
+        let advance = false;
+        if(val.includes('.')){
+          const parts = val.split('.');
+          if(parts[1].length>2){ val = parts[0]+'.'+parts[1].substring(0,2); input.value = val; }
+          if(parts[1].length===2){ advance = true; }
+        }
+        const step = input.dataset.step, head = parseInt(input.dataset.head,10);
+        if(input.dataset.point!==undefined){
+          this.formPdf.data[step][head][parseInt(input.dataset.point,10)] = val;
+        } else {
+          this.formPdf.data[step][head] = val;
+        }
+        input.classList.remove('spec-fail');
+        const num = parseFloat(val);
+        const std = standards[step];
+        if(!isNaN(num) && std && ((std.min!==null && num<std.min) || (std.max!==null && num>std.max))){
+          input.classList.add('spec-fail');
+        }
+        if(advance){ if(idx<inputs.length-1) inputs[idx+1].focus(); else input.blur(); }
+      });
+    });
+  }
+
+  handleWizardNext(){
+    const step = this.formPdf.steps[this.formPdf.stepIndex];
+    const complete = step==='OCH'
+      ? this.formPdf.data['OCH'].every(v=>v!==''&&v!==undefined)
+      : this.formPdf.data[step].every(arr=>arr.every(v=>v!==''&&v!==undefined));
+    if(!complete){ this.showToast('Lengkapi semua head sebelum lanjut'); return; }
+
+    if(this.formPdf.stepIndex === this.formPdf.steps.length-1){
+      this.handleFormPdfGenerate();
+      return;
+    }
+    this.formPdf.stepIndex++;
+    this.renderFormPdfStep();
+    this.dom.scrollArea.scrollTo({top:0, behavior:'smooth'});
+    vibrate(8);
+  }
+
+  handleWizardBack(){
+    if(this.formPdf.stepIndex===0) return;
+    this.formPdf.stepIndex--;
+    this.renderFormPdfStep();
+    this.dom.scrollArea.scrollTo({top:0, behavior:'smooth'});
+    vibrate(6);
+  }
+
+  handleFormPdfGenerate(){
+    const n = this.formPdf.headCount;
+    const profile = this.storage.getActiveProfile();
+    const results = [];
+    for(let i=0;i<n;i++){
+      const measurements = {};
+      ['Flange Width','C/S','Seam Thickness','Seam Length','Body Hook','Cover Hook'].forEach(p=>{
+        measurements[p] = this.formPdf.data[p][i].map(v=>parseFloat(v)||0);
+      });
+      const inputs = {
+        profileId: this.storage.getActiveProfileId(),
+        profileName: profile.name,
+        mode: '3',
+        bodyThickness: this.state.body,
+        eoeThickness: this.state.eoe,
+        ochValue: this.formPdf.data['OCH'][i],
+        headIndex: i+1,
+        headTotal: n,
+        measurements
+      };
+      const record = this.calculator.calculate(inputs, profile.standards);
+      record.standards = JSON.parse(JSON.stringify(profile.standards));
+      record.isFormPdf = true;
+      results.push(record);
+      this.storage.addHistory(record);
+      this.logActivityToFirebase(record);
+    }
+    this.formPdf.results = results;
+    this.renderFormPdfResults();
+    vibrate([12,30,12]);
+  }
+
+  renderFormPdfResults(){
+    this.dom.formPdfWizardWrap.classList.add('hidden');
+    const wrap = this.dom.formPdfResultsWrap;
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = this.formPdf.results.map((record,i)=>{
+      const statusLabel = record.overallStatus==='pass' ? 'LOLOS' : 'GAGAL';
+      return '<div class="head-result-card '+record.overallStatus+'" data-head-idx="'+i+'">'
+        + '<div class="head-result-title-row"><span class="head-result-title">Head '+(i+1)+' — '+statusLabel+'</span></div>'
+        + this.generateResultHTML(record, false)
+        + '<div class="head-result-tr-row"><label>%TR (manual)</label>'
+        + '<input type="text" inputmode="decimal" class="head-tr-input" data-head-idx="'+i+'" placeholder="0"></div>'
+        + '</div>';
+    }).join('')
+      + '<button class="btn btn-primary" id="formPdfContinueBtn" style="margin-top:8px;">Lanjut ke Cetak</button>'
+      + '<button class="btn btn-plain" id="formPdfBackToWizardBtn" style="margin-top:2px;">Kembali edit data pengukuran</button>';
+
+    wrap.querySelectorAll('.head-tr-input').forEach(input=>{
+      input.addEventListener('input', ()=>{
+        input.value = input.value.replace(',', '.').replace(/[^0-9.]/g,'');
+      });
+    });
+    document.getElementById('formPdfContinueBtn').addEventListener('click', ()=>this.handleFormPdfContinueToPrint());
+    document.getElementById('formPdfBackToWizardBtn').addEventListener('click', ()=>{
+      wrap.classList.add('hidden');
+      this.dom.formPdfWizardWrap.classList.remove('hidden');
+    });
+  }
+
+  handleFormPdfContinueToPrint(){
+    const wrap = this.dom.formPdfResultsWrap;
+    const inputs = wrap.querySelectorAll('.head-tr-input');
+    let allFilled = true;
+    inputs.forEach(inp=>{
+      const idx = parseInt(inp.dataset.headIdx,10);
+      const val = inp.value.trim();
+      if(val===''){ allFilled = false; return; }
+      const record = this.formPdf.results[idx];
+      record.results['%TR'] = parseFloat(val);
+      const std = record.standards['%TR'];
+      record.checks['%TR'] = this.calculator.checkStandard(record.results['%TR'], std);
+      if(record.checks['%TR']==='fail') record.overallStatus = 'fail';
+    });
+    if(!allFilled){ this.showToast('Isi %TR untuk semua head dulu sebelum lanjut'); return; }
+    this.openPrintHeaderForm();
+  }
+
+  /* =========================================================
+     CETAK — FORM HEADER -> PREVIEW -> DOWNLOAD (Sheets + PDF)
+     ========================================================= */
+  openPrintHeaderForm(){
+    const todayStr = new Date().toLocaleDateString('id-ID', {day:'2-digit', month:'2-digit', year:'numeric'});
+    const h = this.formPdf.headerData || {};
+    const field = (id,label,val,required)=>
+      '<div class="dev-login-field"><label>'+label+(required?' *':'')+'</label>'
+      + '<input type="text" id="'+id+'" value="'+(val||'').replace(/"/g,'&quot;')+'"></div>';
+    const html = '<div class="dev-login-form">'
+      + '<div class="dev-login-field"><label>Tanggal Periksa/Prod</label><input type="text" id="hfTanggal" value="'+todayStr+'"></div>'
+      + field('hfDesign','Design',h.design)
+      + field('hfNoSpp','No SPP End/No Lot',h.noSpp)
+      + field('hfShift','Shift',h.shift)
+      + '<div class="dev-login-field"><label>Body Thickness (otomatis)</label><input type="text" value="'+fmt(this.state.body)+'" disabled></div>'
+      + field('hfTglProdEoe','Tgl Prod/Shift End (EOE)',h.tglProdEoe)
+      + field('hfLine','Line',h.line)
+      + '<div class="dev-login-field"><label>End/EOE Thickness (otomatis)</label><input type="text" value="'+fmt(this.state.eoe)+'" disabled></div>'
+      + field('hfFitter','Fitter',h.fitter)
+      + field('hfCanSize','Can Size',h.canSize)
+      + field('hfLacquer','End/EOE Lacquer In/Out',h.lacquer)
+      + field('hfInspector','Inspector',h.inspector)
+      + field('hfKodeEoe','Kode EOE ***',h.kodeEoe,true)
+      + '<div class="dev-login-field"><label>Catatan (opsional)</label><input type="text" id="hfCatatan" value="'+(h.catatan||'').replace(/"/g,'&quot;')+'"></div>'
+      + '<div class="dev-login-error" id="hfError"></div>'
+      + '<button class="btn btn-primary" id="hfPreviewBtn">Preview</button>'
+      + '</div>';
+    this.openSheet('Data Form Cetak', html, ()=>{
+      document.getElementById('hfPreviewBtn').addEventListener('click', ()=>this.handlePreviewSubmit());
+    });
+  }
+
+  handlePreviewSubmit(){
+    const val = id=>document.getElementById(id).value.trim();
+    const kodeEoe = val('hfKodeEoe');
+    const errEl = document.getElementById('hfError');
+    if(!kodeEoe){ errEl.textContent = 'Kode EOE *** wajib diisi.'; return; }
+    this.formPdf.headerData = {
+      tanggal: val('hfTanggal'), design: val('hfDesign'), noSpp: val('hfNoSpp'),
+      shift: val('hfShift'), tglProdEoe: val('hfTglProdEoe'), line: val('hfLine'),
+      fitter: val('hfFitter'), canSize: val('hfCanSize'), lacquer: val('hfLacquer'),
+      inspector: val('hfInspector'), kodeEoe, catatan: val('hfCatatan')
+    };
+    this.closeSheet();
+    this.openPrintPreview();
+  }
+
+  openPrintPreview(){
+    const h = this.formPdf.headerData;
+    const results = this.formPdf.results;
+    const passCount = results.filter(r=>r.overallStatus==='pass').length;
+    const failCount = results.length - passCount;
+    const rows = [
+      ['Tanggal', h.tanggal], ['Design', h.design], ['No SPP/Lot', h.noSpp],
+      ['Shift', h.shift], ['Tgl Prod EOE', h.tglProdEoe], ['Line', h.line],
+      ['Fitter', h.fitter], ['Can Size', h.canSize], ['Lacquer In/Out', h.lacquer],
+      ['Inspector', h.inspector], ['Kode EOE ***', h.kodeEoe], ['Catatan', h.catatan||'—']
+    ];
+    const html = '<div class="raw-block" style="margin:0 0 14px;">'
+      + rows.map(r=>'<div class="raw-row"><span>'+r[0]+'</span><span style="font-weight:700;">'+(r[1]||'—')+'</span></div>').join('')
+      + '</div>'
+      + '<div class="spec-chip-row" style="padding:0 0 14px;">'
+      + '<div class="spec-chip"><span class="l">Total Head</span><span class="v">'+results.length+'</span></div>'
+      + '<div class="spec-chip"><span class="l">Lolos</span><span class="v" style="color:var(--success);">'+passCount+'</span></div>'
+      + '<div class="spec-chip"><span class="l">Gagal</span><span class="v" style="color:var(--danger);">'+failCount+'</span></div>'
+      + '</div>'
+      + '<div class="dev-login-error" id="dlError"></div>'
+      + '<button class="btn btn-primary" id="dlDownloadBtn">Download PDF</button>'
+      + '<button class="btn btn-plain" id="dlBackBtn" style="margin-top:4px;">Kembali edit data form</button>';
+    this.openSheet('Preview Sebelum Download', html, ()=>{
+      document.getElementById('dlDownloadBtn').addEventListener('click', ()=>this.handleDownloadToSheets());
+      document.getElementById('dlBackBtn').addEventListener('click', ()=>{ this.closeSheet(); this.openPrintHeaderForm(); });
+    });
+  }
+
+  buildSheetsPayload(){
+    const h = this.formPdf.headerData;
+    const profile = this.storage.getActiveProfile();
+    const nowTime = new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+    const heads = this.formPdf.results.map((record,i)=>{
+      const points = {};
+      ['Flange Width','C/S','Seam Thickness','Seam Length','Body Hook','Cover Hook'].forEach(p=>{
+        points[p] = record.inputs.measurements[p];
+      });
+      return {
+        headNo: i+1,
+        jam: nowTime,
+        och: record.results['OCH'],
+        points,
+        avg: {
+          'Flange Width': record.results['Flange Width'], 'C/S': record.results['C/S'],
+          'Seam Thickness': record.results['Seam Thickness'], 'Seam Length': record.results['Seam Length'],
+          'Body Hook': record.results['Body Hook'], 'Cover Hook': record.results['Cover Hook'],
+          'Actual Overlap': record.results['Actual Overlap'], '% Overlap': record.results['% Overlap'],
+          '%TR': record.results['%TR'], '%BHB': record.results['%BHB'], 'Freespace': record.results['Freespace']
+        },
+        actOlPoints: record.overlapPoints.map(p=>p.actual),
+        percentOlPoints: record.overlapPoints.map(p=>p.percent)
+      };
+    });
+    return {
+      header: {
+        tglPeriksa: h.tanggal, design: h.design, noSppLot: h.noSpp,
+        shift: h.shift, bodyThickness: fmt(this.state.body), tglProdShiftEoe: h.tglProdEoe,
+        line: h.line, eoeThickness: fmt(this.state.eoe), fitter: h.fitter,
+        canSize: h.canSize, lacquerInOut: h.lacquer, inspector: h.inspector,
+        kodeEoe: h.kodeEoe, catatan: h.catatan
+      },
+      heads,
+      standards: profile.standards
+    };
+  }
+
+  async handleDownloadToSheets(){
+    const btn = document.getElementById('dlDownloadBtn');
+    const errEl = document.getElementById('dlError');
+    errEl.textContent = '';
+    if(!window.SHEETS_WEBAPP_URL || window.SHEETS_WEBAPP_URL.indexOf('GANTI_')===0){
+      errEl.textContent = 'URL Apps Script belum diisi di sheets-config.js (lihat SHEETS_SETUP.md).';
+      return;
+    }
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span><span>Mengirim & membuat PDF…</span>';
+    btn.setAttribute('disabled','');
+    try{
+      const payload = this.buildSheetsPayload();
+      const res = await fetch(window.SHEETS_WEBAPP_URL, {
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if(!data || !data.pdfBase64) throw new Error(data && data.error ? data.error : 'Respons server tidak valid');
+
+      const byteChars = atob(data.pdfBase64);
+      const byteNumbers = new Array(byteChars.length);
+      for(let i=0;i<byteChars.length;i++) byteNumbers[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([new Uint8Array(byteNumbers)], {type:'application/pdf'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (data.filename || 'DS-Form-'+Date.now()+'.pdf');
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url), 4000);
+
+      this.closeSheet();
+      this.showToast('PDF berhasil didownload & form di Sheets sudah direset');
+      vibrate(12);
+      // Sesi Form PDF ini selesai — siapkan sesi baru
+      this.resetFormPdfWizard();
+      this.renderFormPdfStep();
+    }catch(err){
+      console.error(err);
+      errEl.textContent = 'Gagal: '+(err.message||'periksa koneksi & URL Apps Script');
+      btn.innerHTML = originalHTML;
+      btn.removeAttribute('disabled');
+    }
+  }
+
+  /* =========================================================
      DEVICE IDENTITY & INFO
      ========================================================= */
   getDeviceId(){
@@ -382,7 +840,7 @@ class App{
     }
     return id;
   }
-  getDeviceInfo(){
+  async getDeviceInfo(){
     const ua = navigator.userAgent || '';
     let os = 'Unknown OS';
     if(/Windows/i.test(ua)) os='Windows';
@@ -396,7 +854,24 @@ class App{
     else if(/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) browser='Chrome';
     else if(/Firefox\//i.test(ua)) browser='Firefox';
     else if(/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browser='Safari';
-    return { os, browser, label: os+' · '+browser, ua };
+
+    // Coba ambil model device ASLI lewat User-Agent Client Hints (Chrome/Edge Android).
+    // navigator.userAgent biasa SUDAH DISAMARKAN oleh Chrome sejak versi 110 demi privasi
+    // (selalu tampil "Android 10; K"), jadi cuma cara ini yang masih bisa dapat model
+    // sungguhan seperti "CPH2797". Tidak tersedia di Safari/iOS — batasan dari Apple.
+    let model = '';
+    try{
+      if(navigator.userAgentData && navigator.userAgentData.getHighEntropyValues){
+        const hv = await navigator.userAgentData.getHighEntropyValues(['model']);
+        if(hv && hv.model) model = hv.model;
+      }
+    }catch(e){ /* browser tidak dukung / ditolak — pakai fallback di bawah */ }
+    if(!model){
+      const m = ua.match(/Android[^;]*;\s*([^)]+)\)/i);
+      if(m && m[1]) model = m[1].replace(/\s*Build.*/i,'').trim();
+    }
+    const label = model ? (os+' · '+model) : (os+' · '+browser);
+    return { os, browser, model, label, ua };
   }
 
   /* =========================================================
@@ -406,6 +881,11 @@ class App{
      - Kalau device sedang offline / request gagal, entri disimpan
        dulu di antrian lokal (ds_pending_logs) dan otomatis dicoba
        kirim ulang saat online / saat app dibuka lagi.
+     - Setiap log dikasih field "expireAtMillis" (7 hari dari
+       sekarang). Saat dikirim ke Firestore, ini dikonversi jadi
+       Firestore Timestamp bernama "expireAt" — field inilah yang
+       dipakai TTL policy (lihat FIREBASE_SETUP.md) untuk otomatis
+       menghapus log setelah 7 hari.
      ========================================================= */
   _queuePendingLog(payload){
     let pending = [];
@@ -413,6 +893,11 @@ class App{
     pending.push(payload);
     if(pending.length>100) pending = pending.slice(-100);
     localStorage.setItem('ds_pending_logs', JSON.stringify(pending));
+  }
+  _toFirestorePayload(payload){
+    const { expireAtMillis, ...rest } = payload;
+    rest.expireAt = firebase.firestore.Timestamp.fromMillis(expireAtMillis || (Date.now()+7*24*60*60*1000));
+    return rest;
   }
   async flushPendingLogs(){
     if(!window.firebaseDb) return;
@@ -423,15 +908,16 @@ class App{
     for(const entry of pending){
       try{
         entry.wasDelayed = true;
-        await window.firebaseDb.collection('activity_logs').add(entry);
+        await window.firebaseDb.collection('activity_logs').add(this._toFirestorePayload(entry));
       }catch(e){ remaining.push(entry); }
     }
     localStorage.setItem('ds_pending_logs', JSON.stringify(remaining));
   }
   async logActivityToFirebase(record){
-    const device = this.getDeviceInfo();
+    const device = await this.getDeviceInfo();
     const payload = {
       timestamp: Date.now(),
+      expireAtMillis: Date.now() + (7*24*60*60*1000),
       deviceId: this.getDeviceId(),
       deviceLabel: device.label,
       userAgent: device.ua,
@@ -445,7 +931,7 @@ class App{
     };
     if(!window.firebaseDb){ this._queuePendingLog(payload); return; }
     try{
-      await window.firebaseDb.collection('activity_logs').add(payload);
+      await window.firebaseDb.collection('activity_logs').add(this._toFirestorePayload(payload));
       this.flushPendingLogs();
     }catch(err){
       console.error('Gagal menyimpan log ke Firebase:', err);
@@ -473,6 +959,7 @@ class App{
       if(tapCount>=5){ tapCount = 0; this.openDevLogin(); }
     });
     this.dom.devRefreshBtn.addEventListener('click', ()=>{ vibrate(6); this.renderDevDashboard(); });
+    this.dom.devClearAllBtn.addEventListener('click', ()=>this.handleDevClearAll());
     this.dom.devLogoutBtn.addEventListener('click', ()=>this.closeDevPanel());
   }
 
@@ -515,6 +1002,7 @@ class App{
 
   openDevPanel(){
     this.dom.devPanel.classList.add('show');
+    this.initDevToolbar();
     this.renderDevDashboard();
   }
   closeDevPanel(){
@@ -523,41 +1011,147 @@ class App{
     vibrate(8);
   }
 
+  /* Batas tampilan: 300 log terbaru sekaligus. Ini jauh di bawah kuota baca
+     gratis Firestore (50rb/hari), dan volume total akan otomatis terjaga
+     oleh TTL 7 hari (lihat FIREBASE_SETUP.md) jadi jarang akan mepet. */
+  DEV_LOG_LIMIT = 300;
+
+  initDevToolbar(){
+    if(this._devToolbarReady) return;
+    this._devToolbarReady = true;
+    this._devStatusFilter = 'all';
+    this.dom.devSearchInput.addEventListener('input', ()=>this.renderDevLogList());
+    this.initSegmented(this.dom.devStatusSegmented, this.dom.devStatusIndicator, (status)=>{
+      this._devStatusFilter = status;
+      this.renderDevLogList();
+    }, 'data-status');
+    requestAnimationFrame(()=>this.layoutIndicator(this.dom.devStatusSegmented, this.dom.devStatusIndicator));
+  }
+
   async renderDevDashboard(){
-    this.dom.devPanelBody.innerHTML = '<div class="empty-state"><p>Memuat data…</p></div>';
+    this.dom.devDailySummary.innerHTML = '';
+    this.dom.devLogListArea.innerHTML = '<div class="empty-state"><p>Memuat data…</p></div>';
     if(!window.firebaseDb){
-      this.dom.devPanelBody.innerHTML = '<div class="empty-state"><h4>Firebase belum siap</h4><p>Lengkapi firebase-config.js terlebih dahulu.</p></div>';
+      this.dom.devLogListArea.innerHTML = '<div class="empty-state"><h4>Firebase belum siap</h4><p>Lengkapi firebase-config.js terlebih dahulu.</p></div>';
       return;
     }
     try{
-      const snap = await window.firebaseDb.collection('activity_logs').orderBy('timestamp','desc').limit(200).get();
-      if(snap.empty){
-        this.dom.devPanelBody.innerHTML = '<div class="empty-state"><h4>Belum ada data</h4><p>Log aktivitas user akan muncul di sini setelah mereka melakukan perhitungan.</p></div>';
-        return;
-      }
-      this.dom.devPanelBody.innerHTML = snap.docs.map(doc=>{
-        const d = doc.data();
-        const date = new Date(d.timestamp).toLocaleString('id-ID', {dateStyle:'medium', timeStyle:'short'});
-        const inputSummary = Object.entries(d.measurements||{}).map(([k,v])=>k+': '+(Array.isArray(v)?v.join(', '):v)).join(' · ');
-        const resultSummary = Object.entries(d.results||{}).map(([k,v])=>k+': '+(typeof v==='number'?v.toFixed(2):v)).join(' · ');
-        const statusLabel = d.overallStatus==='pass' ? 'SESUAI STANDAR' : 'DI LUAR STANDAR';
-        return '<div class="dev-log-card">'
-          + '<div class="dev-log-top">'
-          +   '<span class="dev-log-time">'+date+'</span>'
-          +   '<span class="dev-log-device">'+(d.deviceLabel||'—')+'</span>'
-          +   '<span class="dev-log-status '+d.overallStatus+'">'+statusLabel+'</span>'
-          +   (d.wasDelayed ? '<span class="dev-log-status delayed">SEMPAT TERTUNDA</span>' : '')
-          + '</div>'
-          + '<div class="dev-log-row"><span class="k">Profile</span><span class="v">'+(d.profileName||'—')+(d.headNo?(' · H#'+d.headNo):'')+'</span></div>'
-          + '<div class="dev-log-row"><span class="k">Data Input</span><span class="v">'+inputSummary+'</span></div>'
-          + '<div class="dev-log-row"><span class="k">Hasil Generate</span><span class="v">'+resultSummary+'</span></div>'
-          + '<div class="dev-log-row"><span class="k">Device ID</span><span class="v">'+(d.deviceId||'—')+'</span></div>'
-          + '</div>';
-      }).join('');
+      const snap = await window.firebaseDb.collection('activity_logs').orderBy('timestamp','desc').limit(this.DEV_LOG_LIMIT).get();
+      this._devLogsCache = snap.docs.map(doc=>Object.assign({_id:doc.id}, doc.data()));
+      this.renderDevDailySummary();
+      this.renderDevLogList();
     }catch(err){
       console.error(err);
-      this.dom.devPanelBody.innerHTML = '<div class="empty-state"><h4>Gagal memuat</h4><p>'+(err.message||'Periksa koneksi & Firestore Rules.')+'</p></div>';
+      this.dom.devLogListArea.innerHTML = '<div class="empty-state"><h4>Gagal memuat</h4><p>'+(err.message||'Periksa koneksi & Firestore Rules.')+'</p></div>';
     }
+  }
+
+  renderDevDailySummary(){
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const todayStartMs = todayStart.getTime();
+    let pass=0, fail=0;
+    (this._devLogsCache||[]).forEach(d=>{
+      if(d.timestamp>=todayStartMs){ if(d.overallStatus==='pass') pass++; else fail++; }
+    });
+    const total = pass+fail;
+    this.dom.devDailySummary.innerHTML = '<div class="dev-summary">'
+      + '<div class="dev-summary-chip"><span class="l">Hari Ini</span><span class="v">'+total+'</span></div>'
+      + '<div class="dev-summary-chip"><span class="l">Lolos</span><span class="v pass">'+pass+'</span></div>'
+      + '<div class="dev-summary-chip"><span class="l">Gagal</span><span class="v fail">'+fail+'</span></div>'
+      + '</div>';
+  }
+
+  renderDevLogList(){
+    const all = this._devLogsCache || [];
+    const term = this.dom.devSearchInput.value.trim().toLowerCase();
+    const statusFilter = this._devStatusFilter || 'all';
+    const filtered = all.filter(d=>{
+      if(statusFilter!=='all' && d.overallStatus!==statusFilter) return false;
+      if(!term) return true;
+      const haystack = [(d.profileName||''), (d.deviceLabel||''), (d.deviceId||''), (d.headNo!=null?String(d.headNo):'')].join(' ').toLowerCase();
+      return haystack.indexOf(term)!==-1;
+    });
+
+    if(all.length===0){
+      this.dom.devLogListArea.innerHTML = '<div class="empty-state"><h4>Belum ada data</h4><p>Log aktivitas user akan muncul di sini setelah mereka melakukan perhitungan.</p></div>';
+      return;
+    }
+    if(filtered.length===0){
+      this.dom.devLogListArea.innerHTML = '<div class="empty-state"><h4>Tidak ketemu</h4><p>Coba ubah kata kunci atau filter status.</p></div>';
+      return;
+    }
+
+    this.dom.devLogListArea.innerHTML = '<div class="dev-log-count">Menampilkan '+filtered.length+' dari '+all.length+' log'+(all.length>=this.DEV_LOG_LIMIT?' (mungkin ada lebih banyak)':'')+'</div>'
+      + filtered.map(d=>{
+      const date = new Date(d.timestamp).toLocaleString('id-ID', {dateStyle:'medium', timeStyle:'short'});
+      const inputSummary = Object.entries(d.measurements||{}).map(([k,v])=>k+': '+(Array.isArray(v)?v.join(', '):v)).join(' · ');
+      const resultSummary = Object.entries(d.results||{}).map(([k,v])=>k+': '+(typeof v==='number'?v.toFixed(2):v)).join(' · ');
+      const statusLabel = d.overallStatus==='pass' ? 'SESUAI STANDAR' : 'DI LUAR STANDAR';
+      return '<div class="dev-log-card" data-doc-id="'+d._id+'">'
+        + '<button class="dev-log-delete" data-doc-id="'+d._id+'" aria-label="Hapus log ini">'+ICON_TRASH+'</button>'
+        + '<div class="dev-log-top">'
+        +   '<span class="dev-log-time">'+date+'</span>'
+        +   '<span class="dev-log-device">'+(d.deviceLabel||'—')+'</span>'
+        +   '<span class="dev-log-status '+d.overallStatus+'">'+statusLabel+'</span>'
+        +   (d.wasDelayed ? '<span class="dev-log-status delayed">SEMPAT TERTUNDA</span>' : '')
+        + '</div>'
+        + '<div class="dev-log-row"><span class="k">Profile</span><span class="v">'+(d.profileName||'—')+(d.headNo?(' · H#'+d.headNo):'')+'</span></div>'
+        + '<div class="dev-log-row"><span class="k">Data Input</span><span class="v">'+inputSummary+'</span></div>'
+        + '<div class="dev-log-row"><span class="k">Hasil Generate</span><span class="v">'+resultSummary+'</span></div>'
+        + '<div class="dev-log-row"><span class="k">Device ID</span><span class="v">'+(d.deviceId||'—')+'</span></div>'
+        + '</div>';
+    }).join('');
+
+    this.dom.devLogListArea.querySelectorAll('.dev-log-delete').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const docId = btn.dataset.docId;
+        this.openAlert('Hapus Log Ini?', 'Data log pengukuran ini akan dihapus permanen dari database.', [
+          {text:'Batal', style:'cancel'},
+          {text:'Hapus', style:'destructive', onClick:()=>this.handleDevDeleteLog(docId)}
+        ]);
+      });
+    });
+  }
+
+  async handleDevDeleteLog(docId){
+    try{
+      await window.firebaseDb.collection('activity_logs').doc(docId).delete();
+      vibrate(10);
+      this.renderDevDashboard();
+    }catch(err){
+      console.error(err);
+      this.showToast('Gagal menghapus log: '+(err.message||'periksa koneksi'));
+    }
+  }
+
+  handleDevClearAll(){
+    this.openAlert('Hapus SEMUA Log?', 'Seluruh log aktivitas di database akan dihapus permanen dan tidak bisa dikembalikan. Yakin lanjut?', [
+      {text:'Batal', style:'cancel'},
+      {text:'Hapus Semua', style:'destructive', onClick:async ()=>{
+        this.dom.devLogListArea.innerHTML = '<div class="empty-state"><p>Menghapus semua log…</p></div>';
+        try{
+          let totalDeleted = 0;
+          // Hapus per-batch 500 dokumen (batas writeBatch Firestore), diulang
+          // sampai koleksinya benar-benar kosong.
+          while(true){
+            const snap = await window.firebaseDb.collection('activity_logs').limit(500).get();
+            if(snap.empty) break;
+            const batch = window.firebaseDb.batch();
+            snap.docs.forEach(doc=>batch.delete(doc.ref));
+            await batch.commit();
+            totalDeleted += snap.docs.length;
+            if(snap.docs.length<500) break;
+          }
+          vibrate(12);
+          this.showToast(totalDeleted+' log berhasil dihapus');
+          this.renderDevDashboard();
+        }catch(err){
+          console.error(err);
+          this.dom.devLogListArea.innerHTML = '<div class="empty-state"><h4>Gagal menghapus</h4><p>'+(err.message||'Periksa koneksi & Firestore Rules.')+'</p></div>';
+        }
+      }}
+    ]);
   }
 
   /* ---------- pickers ---------- */
@@ -777,6 +1371,7 @@ class App{
     }).join('');
     this.dom.panelGeneral.innerHTML = build(['Seam Thickness','Seam Length','Body Hook','Cover Hook','%BHB','Freespace']);
     this.dom.panelOverlap.innerHTML = build(['Actual Overlap','% Overlap']);
+    this.dom.panelLainnya.innerHTML = build(['OCH','Flange Width','C/S','%TR']);
   }
 
   handleSaveSettings(){
@@ -938,6 +1533,10 @@ class App{
       {k:'%BHB', l:'BHB', v:fmt(results['%BHB'],0)+'%', h:true, type:'bhb'},
       {k:'Freespace', l:'FS', v:fmt(results['Freespace']), h:true, type:'freespace'}
     ];
+    if(results['OCH']!==undefined) items.unshift({k:'OCH', l:'OCH', v:fmt(results['OCH']), h:false});
+    if(results['Flange Width']!==undefined) items.push({k:'Flange Width', l:'FW', v:fmt(results['Flange Width']), h:false});
+    if(results['C/S']!==undefined) items.push({k:'C/S', l:'C/S', v:fmt(results['C/S']), h:false});
+    if(results['%TR']!==undefined) items.push({k:'%TR', l:'%TR', v:fmt(results['%TR'],0)+'%', h:false});
     const gridHTML = '<div class="stat-grid">'+items.map(i=>
       '<div class="stat-tile"><span class="l">'+i.l+(i.h?('<span class="help-dot" '+dataAttr+' data-type="'+i.type+'">'+ICON_INFO+'</span>'):'')+'</span>'
       + '<span class="v '+checks[i.k]+'">'+i.v+'</span></div>'
