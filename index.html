@@ -186,7 +186,7 @@
           </div>
         </div>
 
-        <div class="group-header">Setting timing output product OTB</div>
+        <div class="group-header">Konfigurasi Cek QC</div>
         <div class="card">
           <div class="list-row">
             <span class="row-label">Jumlah Titik</span>
@@ -212,6 +212,15 @@
             <span class="row-label">Sampai</span>
             <input class="row-field" id="timingBreakEnd" value="19:00" placeholder="HH:MM">
           </div>
+        </div>
+
+        <div class="group-header">Time Stop (Opsional)</div>
+        <div class="card" style="padding-bottom:6px;">
+          <div id="timingStopList"></div>
+          <button type="button" class="timing-add-stop-btn" id="timingAddStopBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Tambah Time Stop
+          </button>
         </div>
 
         <button class="btn btn-primary" id="timingGenerateBtn">
