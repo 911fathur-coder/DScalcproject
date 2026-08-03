@@ -614,6 +614,27 @@ html[data-theme="dark"] .icon-moon{opacity:1;transform:rotate(0deg) scale(1);}
 .timing-result-time{font-family:var(--font-mono);font-weight:800;font-size:18px;color:var(--accent);}
 .timing-gap-badge{background:var(--bg-fill);color:var(--label);font-family:var(--font-mono);font-weight:700;font-size:12px;padding:6px 11px;border-radius:100px;flex-shrink:0;}
 
+/* ---------- timing stop (opsional) ---------- */
+.timing-stop-row{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--separator);}
+.timing-stop-row:last-child{border-bottom:none;}
+.timing-stop-field{flex:1;display:flex;flex-direction:column;gap:4px;}
+.timing-stop-field label{font-size:10px;font-weight:700;color:var(--label-3);text-transform:uppercase;letter-spacing:.03em;}
+.timing-stop-field input{background:var(--bg-fill);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-weight:600;font-size:13.5px;width:100%;}
+.timing-stop-remove{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;margin-top:14px;
+  display:flex;align-items:center;justify-content:center;background:var(--danger-soft);color:var(--danger);
+  transition:transform var(--t-fast) var(--spring);
+}
+.timing-stop-remove svg{width:14px;height:14px;}
+.timing-stop-remove:active{transform:scale(.88);}
+.timing-add-stop-btn{
+  width:100%;display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:12px;font-weight:700;font-size:13.5px;color:var(--accent);
+  transition:opacity var(--t-fast) ease;
+}
+.timing-add-stop-btn svg{width:16px;height:16px;}
+.timing-add-stop-btn:active{opacity:.6;}
+
 /* ---------- spc seamer / slitter shared ---------- */
 .spc-instruction{font-size:11.5px;color:var(--label-2);text-align:center;margin-bottom:12px;line-height:1.4;}
 .spc-table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
