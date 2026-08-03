@@ -425,7 +425,7 @@ class App{
      ========================================================= */
   APPS = [
     { id:'doubleseam', title:'Double Seam', desc:'Kalkulator inspeksi double seam', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2.5"/><path d="M7 7v3M11 7v4M15 7v3M19 7v4"/></svg>', ready:true },
-    { id:'timing', title:'Setting Timing Output', desc:'Jadwal cek QC per shift', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>', ready:true },
+    { id:'timing', title:'Setting Timing Output', desc:'Finish Good OTB', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>', ready:true },
     { id:'spc-slitter', title:'SPC Slitter', desc:'Tren statistik bodyblank & unsquarness', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18M10 3v18M15 3v18M20 3v18"/></svg>', ready:true },
     { id:'spc-seamer', title:'SPC Seamer', desc:'Tren statistik parameter seamer', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 4 8-9"/><path d="M15 7h5v5"/></svg>', ready:true }
   ];
