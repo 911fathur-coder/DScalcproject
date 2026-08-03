@@ -468,7 +468,7 @@ class App{
     else if(appId==='timing'){
       this.dom.largeTitle.textContent = 'Setting Timing Output';
       this.dom.navCompactTitle.textContent = 'Timing Output';
-      this.dom.largeTitleSub.textContent = 'QC SCHEDULE · PRESENTED BY FATHUR';
+      this.dom.largeTitleSub.textContent = 'Finish Good OTB · PRESENTED BY FATHUR';
       this.dom.clearHistoryBtn.classList.remove('visible');
     } else if(appId==='spc-seamer'){
       this.dom.largeTitle.textContent = 'SPC Seamer';
